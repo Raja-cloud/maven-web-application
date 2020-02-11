@@ -1,0 +1,62 @@
+node
+{
+    
+     echo "GitHub BranhName ${env.BRANCH_NAME}"
+    echo "Jenkins Job Number ${env.BUILD_NUMBER}"
+  echo "Jenkins Node Name ${env.NODE_NAME}"
+  
+  echo "Jenkins Home ${env.JENKINS_HOME}"
+  echo "Jenkins URL ${env.JENKINS_URL}"
+  echo "JOB Name ${env.JOB_NAME}"
+    
+    
+    properties([
+    buildDiscarder(logRotator(numToKeepStr: '3')),
+    pipelineTriggers([
+        pollSCM('* * * * *')
+    ])
+  ])
+ 
+   
+   def mavenHome=tool name: "maven3.6.3"
+    
+   stage('Checkout')
+   { 
+
+     git branch: 'development', credentialsId: 'f631ab92-e6e5-4133-971c-6d71d439bb5a', url: 'https://github.com/Raja-cloud/maven-web-application.git'  
+       
+   }
+   
+   stage('Build')
+   {
+   sh   "${mavenHome}/bin/mvn clean package"  
+   }
+   
+   stage('ExecuteSonarQubeReport')
+   {
+   sh "${mavenHome}/bin/mvn sonar:sonar"    
+   }
+   
+   stage('UploadArtifactintoNexus')
+   {
+   sh "${mavenHome}/bin/mvn deploy"   
+   }
+   
+   stage('DeployAppintoTomcat')
+   {
+   sshagent(['cee1a985-894f-40d3-b2df-cfe5ad11226f']) {
+   sh  "scp -o StrictHostKeyChecking=no target/maven-web-application.war  ec2-user@13.234.20.251:/opt/apache-tomcat-9.0.30/webapps" 
+   }       
+   }
+   
+   stage('SendEmailNotification')
+   {
+   emailext body: '''Build is over..
+
+
+   Regards,
+   Rajasekhar
+   ''', subject: 'Build is Over ', to: 'rajusrp987@gmail.com'       
+   }
+    
+}
